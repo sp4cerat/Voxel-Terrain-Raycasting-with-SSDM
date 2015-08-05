@@ -1,0 +1,720 @@
+struct app_vertex
+ {
+   float4 Position     : POSITION;
+   float4 TexCoord     : TEXCOORD1; 
+   float4 Color	       : COLOR0;
+};
+
+struct vertex_fragment
+ {
+   float4 Position	  : POSITION; // For the rasterizer
+   float4 TexCoord	  : TEXCOORD0; 
+   float4 Color	      : TEXCOORD1;
+   float4 Pos         : TEXCOORD2;
+};
+
+struct fragment_out 
+{
+  float4 Color		: COLOR0;
+  float  Depth		: DEPTH;
+};
+
+float bspline_3d_fp( sampler3D texin, float3 vecin) 
+{
+	//return tex3D(texin, vecin).x;
+	// transform the coordinate from [0,extent] to [-0.5, extent-0.5]
+	float3 tsize = float3(1024.0,256.0,1024.0);
+	float3 one_tsize = float3(1.0/tsize.x,1.0/tsize.y,1.0/tsize.z);
+	float3 coord_grid = vecin*tsize - float3(0.5,0.5,0.5);
+	float3 fraction = frac(coord_grid);
+	float3 one_frac = 1.0 - fraction;
+	float3 one_frac2 = one_frac * one_frac;
+	float3 fraction2 = fraction * fraction;
+	float3 w0 = 1.0/6.0 * one_frac2 * one_frac;
+	float3 w1 = 2.0/3.0 - 0.5 * fraction2 * (2.0-fraction);
+	float3 w2 = 2.0/3.0 - 0.5 * one_frac2 * (2.0-one_frac);
+	float3 w3 = 1.0/6.0 * fraction2 * fraction;
+	float3 g0 = w0 + w1;
+	float3 g1 = w2 + w3;
+	float3 index = coord_grid-fraction;
+	float3 h0 = ((w1 / g0) - 0.5 + index)*one_tsize;
+	float3 h1 = ((w3 / g1) + 1.5 + index)*one_tsize;
+
+	// fetch the four linear interpolations
+	float tex000 = tex3D(texin, float3(h0.x, h0.y, h0.z));
+	float tex001 = tex3D(texin, float3(h0.x, h1.y, h0.z));
+	tex000 = lerp(tex001, tex000, g0.y);
+	float tex010 = tex3D(texin, float3(h1.x, h0.y, h0.z));
+	float tex011 = tex3D(texin, float3(h1.x, h1.y, h0.z));
+	tex010 = lerp(tex011, tex010, g0.y);
+
+	float tex100 = tex3D(texin, float3(h0.x, h0.y, h1.z));
+	float tex101 = tex3D(texin, float3(h0.x, h1.y, h1.z));
+	tex100 = lerp(tex101, tex100, g0.y);
+	float tex110 = tex3D(texin, float3(h1.x, h0.y, h1.z));
+	float tex111 = tex3D(texin, float3(h1.x, h1.y, h1.z));
+	tex110 = lerp(tex111, tex110, g0.y);
+
+	tex100 = lerp(tex110, tex100, g0.x);
+	tex000 = lerp(tex010, tex000, g0.x);
+
+	return lerp(tex100, tex000, g0.z);
+}
+
+float bspline_3d_fp_col( sampler3D texin, float3 vecin) 
+{
+	//return tex3D(texin, vecin).x;
+	// transform the coordinate from [0,extent] to [-0.5, extent-0.5]
+	float3 tsize = float3(128.0,128.0,128.0);
+	float3 one_tsize = float3(1.0/tsize.x,1.0/tsize.y,1.0/tsize.z);
+	float3 coord_grid = vecin*tsize - float3(0.5,0.5,0.5);
+	float3 fraction = frac(coord_grid);
+	float3 one_frac = 1.0 - fraction;
+	float3 one_frac2 = one_frac * one_frac;
+	float3 fraction2 = fraction * fraction;
+	float3 w0 = 1.0/6.0 * one_frac2 * one_frac;
+	float3 w1 = 2.0/3.0 - 0.5 * fraction2 * (2.0-fraction);
+	float3 w2 = 2.0/3.0 - 0.5 * one_frac2 * (2.0-one_frac);
+	float3 w3 = 1.0/6.0 * fraction2 * fraction;
+	float3 g0 = w0 + w1;
+	float3 g1 = w2 + w3;
+	float3 index = coord_grid-fraction;
+	float3 h0 = ((w1 / g0) - 0.5 + index)*one_tsize;
+	float3 h1 = ((w3 / g1) + 1.5 + index)*one_tsize;
+
+	// fetch the four linear interpolations
+	float tex000 = tex3D(texin, float3(h0.x, h0.y, h0.z));
+	float tex001 = tex3D(texin, float3(h0.x, h1.y, h0.z));
+	tex000 = lerp(tex001, tex000, g0.y);
+	float tex010 = tex3D(texin, float3(h1.x, h0.y, h0.z));
+	float tex011 = tex3D(texin, float3(h1.x, h1.y, h0.z));
+	tex010 = lerp(tex011, tex010, g0.y);
+
+	float tex100 = tex3D(texin, float3(h0.x, h0.y, h1.z));
+	float tex101 = tex3D(texin, float3(h0.x, h1.y, h1.z));
+	tex100 = lerp(tex101, tex100, g0.y);
+	float tex110 = tex3D(texin, float3(h1.x, h0.y, h1.z));
+	float tex111 = tex3D(texin, float3(h1.x, h1.y, h1.z));
+	tex110 = lerp(tex111, tex110, g0.y);
+
+	tex100 = lerp(tex110, tex100, g0.x);
+	tex000 = lerp(tex010, tex000, g0.x);
+
+	return lerp(tex100, tex000, g0.z);
+}
+
+vertex_fragment vertex_main( app_vertex IN )
+{    
+  vertex_fragment OUT;
+  
+  float4x4 ModelView = glstate.matrix.modelview[0];
+  float4x4 ModelViewProj = glstate.matrix.mvp;
+ 
+  OUT.Position = mul( ModelViewProj, IN.Position );
+  OUT.Pos =  mul( ModelViewProj, IN.Position ); 
+  OUT.TexCoord = IN.TexCoord;
+  OUT.Color = IN.Color;
+  return OUT;
+}
+
+float4 sample_color( sampler3D volume_tex_col, float3 vec	)
+{
+      float mul1=0.5;
+      float mul2=1.0/8.0;
+	  float4 color_sample  = float4(0,0,0,0);
+
+	  for(int j = 0; j < 3; j++)
+	  {
+		  color_sample  += tex3D(volume_tex_col,vec*mul2)*mul1;
+		  mul1*=0.5;
+		  mul2*=2;
+	  }
+	  return color_sample  ;
+}
+
+float sample_alpha2(    sampler3D volume_tex, 
+					    float3 vec,
+					    float alpha)
+{  
+	vec.y*=4.0;
+	if (alpha>0.66) 
+		return bspline_3d_fp( volume_tex, vec.xyz );
+	else
+		return tex3D(volume_tex,vec.xyz).x;
+
+} 
+
+float sample_alpha(    sampler3D volume_tex, 
+					    float3 vec,
+					    float alpha)
+{  
+	vec.y*=4.0;
+	return tex3D(volume_tex,vec.xyz).x;
+} 
+
+fragment_out fragment_main( vertex_fragment IN,
+				float2 position : WPOS, 
+                uniform sampler2D lowres_tex, 
+                uniform sampler3D volume_tex, 
+                uniform sampler3D volume_tex_col, 
+			    uniform float4 viewpoint,
+			    uniform float2 screen,
+				uniform float3 box_pos[2]
+			   )
+{
+	fragment_out OUT;
+	
+	float2	rgba_posi = float2( 
+		(int(int(position.x)/1)*1), 
+		(int(int(position.y)/1)*1) 
+	);
+
+	float2	rgba_pos0 = float2 ( (rgba_posi.x+0)/screen.x , (rgba_posi.y+0)/screen.y );
+	float2	rgba_pos1 = float2 ( (rgba_posi.x+4)/screen.x , (rgba_posi.y-4)/screen.y );
+	float2	rgba_pos2 = float2 ( (rgba_posi.x+4)/screen.x , (rgba_posi.y+4)/screen.y );
+	float2	rgba_pos3 = float2 ( (rgba_posi.x-4)/screen.x , (rgba_posi.y-4)/screen.y );
+	float2	rgba_pos4 = float2 ( (rgba_posi.x-4)/screen.x , (rgba_posi.y+4)/screen.y );
+	float dist0 = tex2D(lowres_tex, rgba_pos0 ).x ;
+	float dist1 = tex2D(lowres_tex, rgba_pos1 ).x ;
+	float dist2 = tex2D(lowres_tex, rgba_pos2 ).x ;
+	float dist3 = tex2D(lowres_tex, rgba_pos3 ).x ;
+	float dist4 = tex2D(lowres_tex, rgba_pos4 ).x ;
+	if(dist1<dist0)dist0=dist1;
+	if(dist2<dist0)dist0=dist2;
+	if(dist3<dist0)dist0=dist3;
+	if(dist4<dist0)dist0=dist4;
+
+	rgba_pos1 = float2 ( (rgba_posi.x+2)/screen.x , (rgba_posi.y  )/screen.y );
+	rgba_pos2 = float2 ( (rgba_posi.x-2)/screen.x , (rgba_posi.y  )/screen.y );
+	rgba_pos3 = float2 ( (rgba_posi.x  )/screen.x , (rgba_posi.y-2)/screen.y );
+	rgba_pos4 = float2 ( (rgba_posi.x  )/screen.x , (rgba_posi.y+2)/screen.y );
+	dist1 = tex2D(lowres_tex, rgba_pos1 ).x ;
+	dist2 = tex2D(lowres_tex, rgba_pos2 ).x ;
+	dist3 = tex2D(lowres_tex, rgba_pos3 ).x ;
+	dist4 = tex2D(lowres_tex, rgba_pos4 ).x ;
+	if(dist1<dist0)dist0=dist1;
+	if(dist2<dist0)dist0=dist2;
+	if(dist3<dist0)dist0=dist3;
+	if(dist4<dist0)dist0=dist4;
+
+	viewpoint+=float4(0.5,0.125,0.5,0.0);
+
+	float4 dir = IN.TexCoord-float4(0.5,0.5,0.5,0) ;
+	float3 delta_dir = normalize(dir.xyz) * (4.0*0.025);
+	float dist = 4.0 * dist0;//tex2D(lowres_tex, float2 ( position.x/screen.x , position.y/screen.y ) ) ;
+	float3 vec  = viewpoint.xyz+delta_dir*dist;
+	float3 vec2 = vec;
+	float3 vec3 = vec;
+	float4 color_sample;
+
+	float alpha=sample_alpha2(volume_tex,vec,1.0);
+	float isoval = 0.7;
+	float deltalen=0.0;
+
+	do	
+	{	
+		vec3=vec2;
+		vec2=vec;
+		vec+= delta_dir*deltalen;
+		dist+=deltalen;
+		deltalen=0.04*(0.0625+(isoval-alpha)*4.0)*(0.6+dist*(3.0/10.0));
+		
+		alpha=sample_alpha2(volume_tex,vec,alpha);
+	}
+	while(alpha<isoval && dist<3.5)	;
+	
+	vec2=vec3;
+
+	OUT.Color = float4(1.0,1.0,1.0,0);
+	OUT.Depth = 1.0;
+
+	if(dist<=3.5) 
+	{
+		float3 vec_delta = (vec-vec2)*0.25;
+		vec = (vec+vec2)*0.5;
+
+		for(int k = 0; k < 5; k++)
+		{
+			float alpha =sample_alpha2(volume_tex,vec,1.0);
+			vec += sign(isoval-alpha) * vec_delta;
+			vec_delta*=0.5;
+		}
+
+		float4 a0=tex3D(volume_tex_col,vec*2*2.0);
+		float4 a1=tex3D(volume_tex_col,vec*2*10.0);
+		float4 a2=tex3D(volume_tex_col,vec*2*30.0);
+		float4 a3=tex3D(volume_tex_col,vec*2*90.0);
+		float4 a4=bspline_3d_fp_col(volume_tex_col,vec*2*270.0);
+		float4 a5=bspline_3d_fp_col(volume_tex_col,vec*2*900.0);
+		float4 a6=bspline_3d_fp_col(volume_tex_col,vec*2*3000.0);
+
+		float4 
+		colxyz   =   0;//a0*0.2;
+		colxyz +=  a1*0.5;
+		colxyz +=  a2*0.35;
+		colxyz +=  a3*0.225;
+		colxyz +=  a4*0.1625;
+		//colxyz +=  a5*0.03125;		
+		//colxyz +=  a6*0.01725;		
+		//colxyz =lerp(colxyz ,,a0);
+		colxyz -= 0.3;
+
+		const float av=0.0001251;
+		const float bv=-0.0001251;
+		float4 uv_add[8] = 
+		{ 
+			float4(av,av,av,0), 
+			float4(av,av,bv,0), 
+			float4(av,bv,bv,0), 
+			float4(av,bv,av,0), 
+			float4(bv,bv,av,0), 
+			float4(bv,av,av,0), 
+			float4(bv,av,bv,0), 
+			float4(bv,bv,bv,0)
+		};
+		float4 normal_pos=float4(0,0,0,0);
+
+		for (int c=0;c<8;c++)
+		{
+			alpha = sample_alpha2(volume_tex,vec+uv_add[c],1.0);
+			normal_pos -= alpha*uv_add[c];		
+		}
+		normal_pos=normalize(normal_pos);
+		
+		float4 colorup      =lerp( 
+			float4(0.9,0.9,0.9,0.0)*colxyz.x, 
+			float4(0.2,0.6,0.2,0.0)*colxyz.y,
+			max(0.0 , min(1.0, normal_pos.y*2.0-1.0 ))
+			);
+		colorup     =max(0.0,min(1.0, normal_pos.y*0.5+0.5))			        *colorup     ;	
+	 
+		float fogval=min(1.0,dist*(1.0/3.0)); 
+
+		float distance = max(min ( 1.0, length(vec-viewpoint)), 0.0);
+
+		OUT.Color =  float4( 
+			normal_pos.x*0.5+0.5,
+			normal_pos.y*0.5+0.5,
+			normal_pos.z*0.5+0.5,
+			colxyz.x);
+			//distance  );
+		
+		//(colorup)*(1.0-fogval)+float4(0.7,0.7,0.7,0)*fogval;
+		OUT.Depth = dist/4.0;
+	}
+	return OUT;
+}
+
+fragment_out fragment_main_lowres
+				(				
+				vertex_fragment IN,
+                uniform sampler2D lowres_tex, 
+                uniform sampler3D volume_tex, 
+                uniform sampler3D volume_tex_col, 
+			    uniform float4 viewpoint,
+			    uniform float2 screen
+				)
+{
+	fragment_out OUT;
+
+	float4 dir = IN.TexCoord-float4(0.5,0.5,0.5,0) ;
+	float3 delta_dir = normalize(dir.xyz) * (4.0*0.025);
+	float3 vec  = viewpoint.xyz+float3(0.5,0.125,0.5);
+	float4 color_sample;
+
+	float alpha=sample_alpha2(volume_tex,vec,1.0);
+	float isoval = 0.7;
+	float dist = 0.0;
+	float dist2 = 0.0;
+	float dist3 = 0.0;
+	float deltalen=0.0;
+
+	do	
+	{
+		dist3=dist2;
+		dist2=dist;
+		
+		vec+= delta_dir*deltalen;
+		dist+=deltalen;
+//		deltalen=0.04*(0.0625+(isoval-alpha)*2.0)*(0.6+dist*(2.0/10.0));
+		deltalen=0.03*(0.0625+(isoval-alpha)*2.0)*(0.5+dist*(1.0/10.0));
+		
+		alpha=sample_alpha2(volume_tex,vec,alpha);
+	}
+	while(alpha<isoval && dist<3.5)	;
+
+	//Shadow
+	float3 lightpos = float3(vec.x,vec.y-0.01,vec.z);	
+//	float light_floor_len = length(vec-lightpos);
+//	delta_dir = normalize(lightpos-vec) * (4.0*0.025);
+	delta_dir = float3(0,-1,0)*0.01;// * (4.0*0.025);
+	deltalen=0;
+	dist=0.0;
+	alpha=0.65;
+	
+	int it=400;
+	do	
+	{
+		lightpos+= delta_dir;//*deltalen;
+		//dist+=deltalen;
+		//deltalen=0.05*(0.0625+(isoval-alpha)*2.0)*(0.5+dist3*(1.0/10.0));
+		alpha=sample_alpha2(volume_tex,lightpos,alpha);
+	}
+//	while(alpha<isoval && dist<light_floor_len && (--it>0)&& vec.y<0.5&& vec.y>-0.5)	;
+	while(alpha<isoval && (--it>0)&& lightpos.y>0)	;
+	
+	
+	float shado = 0.0;
+	if (lightpos.y<=0) shado = 1.0;
+		
+	OUT.Depth   = dist3/4.5f;//dist3/4.5f;  
+	OUT.Color.x = shado ;
+
+	return OUT;
+}
+
+fragment_out fragment_ssdm
+				(				
+				vertex_fragment IN,
+				float2 position : WPOS, 
+			    uniform float4 matrix1,
+			    uniform float4 matrix2,
+			    uniform float4 matrix3,
+                uniform sampler2D zbuf_tex, 
+                uniform sampler2D rgba_tex,
+			    uniform float2 screen
+				)
+{
+	fragment_out OUT;
+
+	float2 rgba_pos = float2( position.x/screen.x , position.y/screen.y );
+	float4 rgba		= tex2D(rgba_tex, rgba_pos ) ;
+	float  depth	= tex2D(zbuf_tex, rgba_pos ).x/25 +0.0001;
+	float  displace = rgba.w;
+	rgba.w=1.0;
+
+	rgba.xyz = rgba.xyz*2.0-1.0;
+
+	float4 ss_normal = float4 ( 
+		dot ( rgba.xyz, matrix1.xyz ),
+		dot ( rgba.xyz, matrix2.xyz ),
+		dot ( rgba.xyz, matrix3.xyz ),
+		1.0);
+
+	float  xs  = rgba_pos.x * 2.0 - 1.0;
+	float  ys  = rgba_pos.y * 2.0 - 1.0;
+	float  dx  = ss_normal.x * displace * 0.01;
+	float  dy  = ss_normal.y * displace * 0.01;
+	float  dz  = ss_normal.z * displace * 0.0001;
+	float2 dxs = (xs*depth + dx)/(depth-dz)-xs ;
+	float2 dys = (ys*depth + dy)/(depth-dz)-ys ;
+			 
+	//OUT.Color.x = ss_normal.x * displace*0.5+0.5;//dxs*0.1+0.5;
+	//OUT.Color.y = ss_normal.y * displace*0.5+0.5;//dxs*0.1+0.5;
+	OUT.Color.x = dxs*0.1+0.5;
+	OUT.Color.y = dys*0.1+0.5;
+	OUT.Color.z = depth*22.0;//(depth+dz)*4.0;
+	OUT.Color.w = ss_normal.z;//displace;
+
+	//OUT.Color = ss_normal*displace*0.5-0.5;
+  
+	return OUT;
+}
+
+fragment_out fragment_ssdm_mip
+				(				
+				vertex_fragment IN,
+				float2 position : WPOS, 
+                uniform sampler2D rgba_tex,
+			    uniform float2 screen
+				)
+{
+	fragment_out OUT;
+
+	float2 rgba_pos1= float2( (position.x+0.5)/screen.x , (position.y+0.5)/screen.y );
+	float2 rgba_pos2= float2( (position.x+0.5)/screen.x , (position.y-0.5)/screen.y );
+	float2 rgba_pos3= float2( (position.x-0.5)/screen.x , (position.y+0.5)/screen.y );
+	float2 rgba_pos4= float2( (position.x-0.5)/screen.x , (position.y-0.5)/screen.y );
+
+	float4 rgba		=
+		(
+			tex2D(rgba_tex, rgba_pos1 ) +
+			tex2D(rgba_tex, rgba_pos2 ) +
+			tex2D(rgba_tex, rgba_pos3 ) +
+			tex2D(rgba_tex, rgba_pos4 ) 
+		) * 0.25;
+			 
+	OUT.Color   = rgba;
+  
+	return OUT;
+}
+
+
+fragment_out fragment_ssdm_final
+				(				
+					vertex_fragment IN,
+					float2 position : WPOS, 
+					uniform sampler2D ssdm_m0,
+					uniform sampler2D ssdm_m1,
+					uniform sampler2D ssdm_m2,
+					uniform sampler2D ssdm_m3,
+	                uniform sampler2D rgba_tex,
+					uniform float2 screen
+				)
+{
+	fragment_out OUT;
+
+	float  ax,ay;
+
+	ax = 20.0 /screen.x ;
+	ay = 20.0 /screen.y ;
+
+	float2 tex_pos  = float2( position.x/screen.x , position.y/screen.y );
+	float2 tex_nearest = tex_pos ;
+
+	float xs = tex_pos.x * 2.0 - 1.0;
+	float ys = tex_pos.y * 2.0 - 1.0;
+
+	float4 delta = (tex2D( ssdm_m0, tex_pos ) * 2.0 - 1.0)*20.0/1024.0;
+	float  dist  = delta.x*delta.x+delta.y*delta.y;
+	float  depth = delta.z;
+
+	for (float x=-ax;x<ax;x+=ax/2.0)
+	for (float y=-ay;y<ay;y+=ay/2.0)
+	{
+		float2 tex_uv=tex_pos + float2(x,y)*0.5 ;
+		float4 d = (tex2D( ssdm_m0, tex_uv ) * 2.0 - 1.0)*20.0/1024.0;
+		float dx = -d.x-x;
+		float dy = -d.y-y;
+		float di = dx*dx+dy*dy;
+
+		//if ((di<1.0/1024.0)&&(d.z<depth)) 
+		if (di<dist && d.z<depth) 
+		{
+			dist = di;
+			depth= d.z;
+			tex_nearest=tex_uv;
+		}							
+	}
+	
+	//OUT.Color  =tex2D( ssdm_m0  , tex_pos );
+	
+	OUT.Color=tex2D( ssdm_m0  , tex_nearest );
+	//OUT.Color.g=tex2D( rgba_tex , tex_nearest ).w;
+	//OUT.Color.b=tex2D( rgba_tex , tex_nearest ).w;
+	//OUT.Color.a=tex2D( rgba_tex , tex_nearest ).w;
+  
+	return OUT;
+}
+
+// 2 frames -> 
+
+vertex_fragment vertex_ssdm_displace( 
+									 app_vertex IN
+									,uniform sampler2D ssdm_tex
+									,uniform sampler2D rgba_tex
+									 )
+{    
+  vertex_fragment OUT;
+  
+  float4x4 ModelView = glstate.matrix.modelview[0];
+  float4x4 ModelViewProj = glstate.matrix.mvp;
+
+  float4 displace = 
+	  tex2D(ssdm_tex, IN.Position.xy)+
+	  tex2D(rgba_tex,float2(0,0))*0.0001;
+
+// if(0)
+  //if (displace.w<0.5)
+  {
+		float rad=0.003;
+		float4 d0 =	displace;
+		float4 d1 = tex2D(ssdm_tex, IN.Position.xy+float2(rad,rad));
+		float4 d2 = tex2D(ssdm_tex, IN.Position.xy+float2(rad,-rad));
+		float4 d3 = tex2D(ssdm_tex, IN.Position.xy+float2(-rad,rad));
+		float4 d4 = tex2D(ssdm_tex, IN.Position.xy+float2(-rad,-rad));
+		float4 d5 = tex2D(ssdm_tex, IN.Position.xy+float2(0.0000,rad));
+		float4 d6 = tex2D(ssdm_tex, IN.Position.xy+float2(0.0000,-rad));
+		float4 d7 = tex2D(ssdm_tex, IN.Position.xy+float2( rad,0.000));
+		float4 d8 = tex2D(ssdm_tex, IN.Position.xy+float2(-rad,0.000));
+
+		float mz = (d0.z*3+d1.z+d2.z+d3.z+d4.z+d5.z+d6.z+d7.z+d8.z)/(8.0+3.0);
+
+		rad=0.009/(300*d0.z+0.01);
+		d0 = displace;
+		d1 = tex2D(ssdm_tex, IN.Position.xy+float2(rad,rad));
+		d2 = tex2D(ssdm_tex, IN.Position.xy+float2(rad,-rad));
+		d3 = tex2D(ssdm_tex, IN.Position.xy+float2(-rad,rad));
+		d4 = tex2D(ssdm_tex, IN.Position.xy+float2(-rad,-rad));
+		d5 = tex2D(ssdm_tex, IN.Position.xy+float2(0.0000,rad));
+		d6 = tex2D(ssdm_tex, IN.Position.xy+float2(0.0000,-rad));
+		d7 = tex2D(ssdm_tex, IN.Position.xy+float2( rad,0.000));
+		d8 = tex2D(ssdm_tex, IN.Position.xy+float2(-rad,0.000));
+
+		displace = (displace+d1+d2+d3+d4+d5+d6+d7+d8)/(8.0+1.0);
+  }
+
+  OUT.Position = mul( ModelViewProj, IN.Position ) ;
+  float4 displace2d = displace;
+  displace2d.z=0.0;
+  displace2d.w=0.0;
+  OUT.Position += (displace2d*2.0-1.0)*0.04;
+  OUT.Position.z = displace.z;
+  OUT.Position.xy = OUT.Position.xy  * 1.2 ;
+  OUT.TexCoord = IN.Position;//IN.TexCoord;
+  //OUT.Color = displace;//IN.TexCoord;
+  
+  return OUT;
+}
+
+fragment_out fragment_ssdm_displace
+				(				
+					 vertex_fragment IN
+					,float2 position : WPOS
+					,uniform sampler2D ssdm_tex
+					,uniform sampler2D rgba_tex
+					,uniform float2 screen
+				)
+{
+	fragment_out OUT;
+
+	//OUT.Color = IN.Color;	return OUT;
+	
+	float4 displace = tex2D(ssdm_tex, IN.TexCoord.xy);
+	float4 rgba = tex2D(rgba_tex, IN.TexCoord.xy)+displace*0.0001;
+
+	float a = smoothstep ( 0.7 , 0.9 , rgba.y);
+
+	float4 colorup      =lerp ( 
+		float4(0.5,0.5,0.5,0.0)*(rgba.w*1.0+0.0)*1.2, 
+		float4(0.4,1.0,0.4,0.0)*(rgba.w*0.8+0.1)*1.0, 
+		a);
+		//max(0.0 , min(1.0, rgba.y ))
+		//);
+	colorup     =max(0,(rgba.y*1.0)) *colorup     ;	
+	
+  OUT.Color = colorup;
+
+  /*
+
+  float2 pos  = float2( position.x/screen.x , position.y/screen.y );
+  float4 bgcol = float4(pos.y,pos.y*0.8+0.2,0.5+pos.y*0.5,0);
+
+  OUT.Color = lerp( 
+	  colorup ,
+	  //float4(0.5,0.6,0.7,0),
+	  bgcol,
+	  max(0.0,min(1.0, 1.5-300.0/(200.0+displace.z*displace.z*1000))));
+  
+  if ( displace.z > 0.85 ) OUT.Color = bgcol;
+  
+  //rgba*(displace.w*0.5+0.5);//IN.Color;
+  
+  */
+	return OUT;
+}
+
+fragment_out fragment_ssao
+				(				
+					 vertex_fragment IN
+					,float2 position : WPOS
+					,uniform sampler2D depth_tex
+					,uniform sampler2D color_tex
+					,uniform sampler2D shadow_tex
+					,uniform float2 screen
+				)
+{
+	fragment_out OUT;
+
+	float2 tex0 = IN.Pos.xy*0.5+0.5;
+	float  z0   = tex2D(depth_tex, tex0);
+	float  shadow= tex2D(shadow_tex, ((tex0-0.5)/1.2)+0.5).x;
+	float bright= 0.0;
+	float4 rgba = tex2D(color_tex, tex0);
+
+	float rndx = 2345.2345;
+	float rndy = 5335.7126;
+	float rndz = 7831.3452;
+
+	float seedx = frac(frac(tex0.x*16.87635)+frac(tex0.x*4.45363)+tex0.x);
+	float seedy = frac(frac(tex0.y*16.87635)+frac(tex0.y*4.45363)+tex0.y);
+
+	float twopi=3.141592653589793*2.0;
+	float addx = (
+		frac(seedy*156.32862416+seedx*156.086243456)+
+		frac(seedy*65.64896876264647)+
+		frac(seedx*35.3468523532347)+
+		frac(seedy*5.8342857334647)+
+		frac(seedx*5.256463876844267)
+		)*twopi;
+	float radius = 2*(1.0-z0*z0);//100.0/(100.0+z0*z0*1000);
+
+	float4 normal=tex2D(color_tex, tex0 )*2.0-1.0;
+
+	for (float a=0;a<1.0;a+=1.0/10.0)
+	{
+		float factor=sqrt(a);
+		rndx = sin(a*30+addx)*factor*radius*0.12512;
+		rndy = cos(a*30+addx)*factor*radius*0.12512;
+			 
+		float2 delta_xy = tex0 + float2( rndx,rndy ) ;
+
+		if (delta_xy.x > 0)
+		if (delta_xy.y > 0)
+		if (delta_xy.x < 1)
+		if (delta_xy.y < 1)
+		{
+			float  z=z0-tex2D(depth_tex, delta_xy);
+			bright+=sign(z)*min(abs(z),0.01)*(1.0-factor);
+		}
+
+		//bright+=smoothstep(-0.01*z0+0.0005,0.01*z0+0.0005,0.01*z*(1.0-factor));
+	}
+
+	bright = max(min(bright*30.0+0.0,1.0),0.0);
+
+	float4 bgcol = float4(tex0.y,tex0.y*0.8+0.2,0.5+tex0.y*0.5,0);
+	//OUT.Color = tex2D(color_tex, tex0);
+
+	z0=z0*2.0-1.0;
+			
+	OUT.Color = lerp( 
+	  max(float4(0,0,0,0),rgba*(1.0-bright)),//+(1.0-z0*z0)*0.1)) ,
+//	  float4(0.5,0.6,0.7,0),
+	  bgcol,
+	  max(0,
+	   min(1,
+	    pow(z0*1.25 ,0.3)*1.3-0.3
+		))
+	  
+	  );//
+	  //max(0.0,min(1.0, 1.0-100.0/(100+z0-0.5)*2*1000))));
+	 	  
+	if ( z0 > 0.85 ) OUT.Color = bgcol;
+
+	//if(IN.Pos.x<0) 
+	//	OUT.Color = 1.0-bright;//tex2D(color_tex, tex0);//1.0-bright;
+
+	return OUT;
+}
+
+	  //float4(0.5,0.6,0.7,0),
+	//OUT.Color   = z0;//tex2D(color_tex, tex0)*bright;
+
+			//if ( z > z0+delta_z*0.01 ) bright+=1.0/20.0;
+			
+			//if(abs(z)<0.01+0.0015) 
+
+		//rndx = frac( rndx*a+a*34622.34563263+232.23451 )* 2.0-1.0;
+		//rndy = frac( rndy*a+a*14562.14678323+523.12451 )* 2.0-1.0;
+		//rndz = frac( rndz*a+a*13562.83325621+223.82451 )* 2.0-1.0;
+
+
+		//float nx = float(int(normal_pos.x*127+128))/256.0;
+		//float ny = float(int(normal_pos.y*127+128))/256.0;
+		//float nz = float(int(normal_pos.z*127+128))/256.0;		
+		//float nxyz = nx*256.0+ny+nz*(1.0/256.0);
+		//float nx2 = frac(nxyz/256.0);
+		//float ny2 = frac(nxyz);
+		//float nz2 = frac(nxyz*256);
+
