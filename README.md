@@ -11,4 +11,5 @@ The ones of you adept in CG may play around with the shader thats included.
 
 (Edit) Note: As the program generates the terrain as a 256MB PBO that is copied to the final texture, at least 768MB of GPU memory are recommended.
 
+Youtube Vid below
 [![HVOX Engine](http://img.youtube.com/vi/f4bYYWnQbSU/0.jpg)](http://www.youtube.com/watch?v=f4bYYWnQbSU)
